@@ -46,7 +46,7 @@ class DNN(nn.Module):
         self.fc1 = nn.Linear(input_dim, 100)
         self.fc2 = nn.Linear(100, 64)
         self.fc3 = nn.Linear(64, 2)
-        '''
+        
         self.conv1 = ConvBlockSequential(in_channels=input_dim, out_channels=100, kernel_size=1, init_type="xavier", activation=self.activation, use_batchnorm=True)
         self.conv2 = ConvBlockSequential(in_channels=100, out_channels=64, kernel_size=1, init_type="xavier", activation=self.activation, use_batchnorm=True)
         self.conv3 = ConvBlockSequential(in_channels=64, out_channels=2, kernel_size=1, init_type="xavier", activation=None, use_batchnorm=True)
@@ -56,12 +56,11 @@ class DNN(nn.Module):
         self.conv3 = ConvBlockSequential(in_channels=100, out_channels=64, kernel_size=1, init_type="xavier", activation=self.activation, use_batchnorm=True)
         self.conv4 = ConvBlockSequential(in_channels=64, out_channels=32, kernel_size=1, init_type="xavier", activation=self.activation, use_batchnorm=True)
         self.conv5 = ConvBlockSequential(in_channels=32, out_channels=2, kernel_size=1, init_type="xavier", activation=None, use_batchnorm=True)
-        '''
 
     def forward(self, x):
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.conv3(x)
-        #x = self.conv4(x)
-        #x = self.conv5(x)
+        x = self.conv4(x)
+        x = self.conv5(x)
         return x

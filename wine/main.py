@@ -1,14 +1,17 @@
 import os
 import argparse
+from collections import OrderedDict
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import MultiStepLR
+from torchvision import transforms
 
-from dataset import WineDataset, WineTestDataset
-from models import DNN
+from dataset_new import DigitDataset, DigitTestDataset
+from resnet_interface import Iresnet
+from network import MouseNet, MouseAttentionNet
 
 
 def load_model(model, path, strict=False):
@@ -42,9 +45,8 @@ def train(train_dataloader, dev_dataloader, model, optimizer, lr_scheduler, dev_
         for idx, data in enumerate(train_dataloader):
             feature, label = data
             feature, label = feature.cuda(), label.cuda()
-            feature = feature.unsqueeze(2)
+            cur_length = label.shape[0]
             output = model(feature)
-            output = output.squeeze()
 
             loss = criterion(output, label)
             optimizer.zero_grad()
@@ -53,21 +55,19 @@ def train(train_dataloader, dev_dataloader, model, optimizer, lr_scheduler, dev_
 
             output_choice = output.data.max(dim=1)[1]
             correct = output_choice.eq(label).sum().cpu().numpy()
-            print('[epoch%d: batch%d], train loss: %f, accuracy: %f' % (epoch, idx, loss.item(), correct * 1.0 / batch_size))
+            print('[epoch%d: batch%d], train loss: %f, accuracy: %f' % (epoch, idx, loss.item(), correct * 1.0 / cur_length))
 
-            if idx % 10 == 9:
+            if idx % 50 == 49:
                 total_correct = 0.
                 for index, data in enumerate(dev_dataloader):
                     feature, label = data
                     feature, label = feature.cuda(), label.cuda()
-                    feature = feature.unsqueeze(2)
                     output = model(feature)
-                    output = output.squeeze()
                     output_choice = output.data.max(dim=1)[1]
                     correct = output_choice.eq(label).sum().cpu().numpy()
                     total_correct += correct
                 print('dev set accuracy: {}'.format(total_correct/float(dev_set_len)))
-        if epoch % 10 == 0:
+        if epoch % 1 == 0:
             torch.save(model.state_dict(), "%s/epoch_%d.pth" % (args.output_dir, epoch))
 
 
@@ -76,9 +76,7 @@ def validate(test_dataloader, model):
     for index, data in enumerate(test_dataloader):
         feature = data
         feature = feature.cuda()
-        feature = feature.unsqueeze(2)
         output = model(feature)
-        output = output.squeeze()
 
         output_choice = output.data.max(dim=1)[1]
         output_choice = output_choice.data.cpu().numpy()
@@ -89,23 +87,32 @@ def validate(test_dataloader, model):
                 f.write(str(item[j]) + '\n') 
 
 def main(args):
-    if args.model == 'DNN':
-        model = DNN(input_dim=11)
+    if args.model == 'resnet18':
+        model = Iresnet(pretrained=True, backbone_type='resnet18')
+    elif args.model == 'MouseNet':
+        model = MouseNet()
+    elif args.model == 'MouseAttentionNet':
+        model = MouseAttentionNet(use_batchnorm=False)
     model.cuda()
 
-    optimizer = torch.optim.SGD(model.parameters(), args.lr,
-                                momentum=args.momentum,
+    optimizer = torch.optim.Adam(model.parameters(), args.lr,
+                                #momentum=args.momentum,
                                 weight_decay=args.weight_decay)
-    lr_scheduler = MultiStepLR(optimizer, milestones=[50, 80], gamma=0.5)
+    lr_scheduler = MultiStepLR(optimizer, milestones=[100, 200], gamma=0.5)
 
     if args.load_path:
         if args.recover:
             load_model(model, args.load_path, strict=True)
             print('load model state dict in {}'.format(args.load_path))
 
-    train_set = WineDataset('train_set.csv')
-    dev_set = WineDataset('dev_set.csv')
-    test_set = WineTestDataset('test_set.csv')
+    resize_size = args.resize_size
+    transform = transforms.Compose([
+                    transforms.Resize(resize_size, resize_size),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=(0.5, 0.5, 0.5,), std=(0.5, 0.5, 0.5))])
+    train_set = DigitDataset('../data.csv', transform=transform)
+    dev_set = DigitDataset('../dev_set.csv', root_path='/mnt/lustre/niuyazhe/nyz/ml/team/data/train/', transform=transform)
+    test_set = DigitTestDataset('../test_set.csv', transform=transform)
     train_dataloader = DataLoader(train_set, batch_size=args.batch_size, 
                                   shuffle=True, num_workers=args.num_workers,
                                   pin_memory=True)
@@ -117,25 +124,26 @@ def main(args):
                                  pin_memory=True)
 
     if args.evaluate:
-        validate(test_dataloader, model)
+        validate(dev_dataloader, model)
         return
 
     train(train_dataloader, dev_dataloader, model, optimizer, lr_scheduler, len(dev_set), args)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='machine learning homework')
-    parser.add_argument('--load_path', default='./experiment/conv3bn/epoch_250.pth', type=str)
-    parser.add_argument('--recover', default=False, type=bool)
+    parser.add_argument('--load_path', default='./experiment/premousenet_scratch_resize/epoch_63.pth', type=str)
+    parser.add_argument('--recover', default=True, type=bool)
     parser.add_argument('--epoch', default=500, type=int)
     parser.add_argument('--lr', default=4e-4, type=float)
     parser.add_argument('--momentum', default=0.5, type=float)
-    parser.add_argument('--weight_decay', default=1e-4, type=float)
+    parser.add_argument('--weight_decay', default=1e-3, type=float)
     parser.add_argument('--batch_size', default=32, type=int)
-    parser.add_argument('--model', default='DNN', type=str)
-    parser.add_argument('--num_workers', default=8, type=int)
+    parser.add_argument('--model', default='resnet18', type=str)
+    parser.add_argument('--num_workers', default=32, type=int)
     parser.add_argument('--evaluate', default=True, type=bool)
     parser.add_argument('--loss_function', default='CrossEntropy', type=str)
     parser.add_argument('--output_dir', default='./experiment/result', type=str)
+    parser.add_argument('--resize_size', default=32, type=int)
 
     args = parser.parse_args()
     if not os.path.exists(args.output_dir):
