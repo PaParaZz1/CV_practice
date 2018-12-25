@@ -1,41 +1,36 @@
 import os
-import cv2
 import random
 import numpy as np
-import torch
+#mport torch
 from torch.utils.data import Dataset
-from PIL import Image
-from torchvision import transforms
 
 
 def divide():
-    path = '/mnt/lustre/niuyazhe/nyz/ml/team/data/test_set.csv'
-    label_path = '/mnt/lustre/niuyazhe/nyz/ml/team/data/test_labels.csv'
-    train_set = '/mnt/lustre/niuyazhe/nyz/ml/team/data/train_set.csv'
-    dev_set = '/mnt/lustre/niuyazhe/nyz/ml/team/data/dev_set.csv'
-    test_set = '/mnt/lustre/niuyazhe/nyz/ml/team/data/test_dev_set.csv'
+    path = 'list_a.txt'
+    train_path = 'train_a.txt'
+    test_path = 'test_a.txt'
     with open(path) as f:
         lines = f.readlines()
-    with open(label_path) as f:
-        label_lines = f.readlines()
     assert(len(lines) != 0)
-    assert(len(lines) == len(label_lines))
-    mapping = [lines, label_lines]
-    mapping = [(lines[x][:-1] + ',' + label_lines[x][:-1] + '\n') for x in range(len(lines))]
-    '''
+    mapping = [x for x in lines]
     random.shuffle(mapping)
     pivot = int(len(mapping)*0.8)
-    with open(train_set, 'w') as f:
+    with open(train_path, 'w') as f:
         f.writelines(mapping[:pivot])
-    with open(dev_set, 'w') as f:
+    with open(test_path, 'w') as f:
         f.writelines(mapping[pivot:])
-    '''
-    with open(test_set, 'w') as f:
-        f.writelines(mapping)
+
 
 class ModelsimDataset(Dataset):
     def __init__(self):
+        self.a = a
 
     def __len(self):
+        return 0
 
     def __getitem(self, index):
+        return 0
+
+
+if __name__ == "__main__":
+    divide()
