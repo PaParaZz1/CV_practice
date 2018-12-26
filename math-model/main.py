@@ -29,7 +29,7 @@ def load_model(model, path, strict=False):
         print(k)
 
 
-def train(train_dataloader, dev_dataloader, model, optimizer, lr_scheduler, dev_set_len, args):
+def train(train_dataloader, dev_dataloader, model, optimizer, lr_scheduler, args):
     model.train()
     if args.loss_function == 'L1':
         criterion = nn.L1Loss()
@@ -55,23 +55,18 @@ def train(train_dataloader, dev_dataloader, model, optimizer, lr_scheduler, dev_
             loss.backward()
             optimizer.step()
 
-            output_choice = output.data.max(dim=1)[1]
-            correct = output_choice.eq(label).sum().cpu().numpy()
-            print('[epoch%d: batch%d], train loss: %f, accuracy: %f' %
-                  (epoch, idx, loss.item(), correct * 1.0 / cur_length))
+            print('[epoch%d: batch%d], train loss: %f' % (epoch, idx, loss.item()))
 
             if idx % 50 == 49:
-                total_correct = 0.
+                total_error = 0.
                 for index, data in enumerate(dev_dataloader):
                     feature, label = data
                     feature, label = feature.cuda(), label.cuda()
                     output = model(feature)
-                    output_choice = output.data.max(dim=1)[1]
-                    correct = output_choice.eq(label).sum().cpu().numpy()
-                    total_correct += correct
-                print('dev set accuracy: {}'.format(
-                    total_correct/float(dev_set_len)))
-        if epoch % 1 == 0:
+                    test_error = torch.norm(label - output, p=2)
+                    total_error += test_error
+                print('test set error: {}'.format(total_error))
+        if epoch % 2 == 0:
             torch.save(model.state_dict(), "%s/epoch_%d.pth" %
                        (args.output_dir, epoch))
 
@@ -123,7 +118,7 @@ def main(args):
         return
 
     train(train_dataloader, test_dataloader, model,
-          optimizer, lr_scheduler, len(test_set), args)
+          optimizer, lr_scheduler, args)
 
 
 if __name__ == "__main__":
@@ -131,18 +126,17 @@ if __name__ == "__main__":
     parser.add_argument(
         '--load_path', default='./experiment/SFNet/epoch_63.pth', type=str)
     parser.add_argument('--root', default='./data/a/')
-    parser.add_argument('--recover', default=True, type=bool)
+    parser.add_argument('--recover', default=False, type=bool)
     parser.add_argument('--epoch', default=500, type=int)
-    parser.add_argument('--lr', default=4e-4, type=float)
+    parser.add_argument('--lr', default=1e-3, type=float)
     parser.add_argument('--momentum', default=0.5, type=float)
-    parser.add_argument('--weight_decay', default=1e-3, type=float)
-    parser.add_argument('--batch_size', default=32, type=int)
-    parser.add_argument('--model', default='resnet18', type=str)
-    parser.add_argument('--num_workers', default=32, type=int)
-    parser.add_argument('--evaluate', default=True, type=bool)
-    parser.add_argument('--loss_function', default='L1', type=str)
+    parser.add_argument('--weight_decay', default=1e-4, type=float)
+    parser.add_argument('--batch_size', default=64, type=int)
+    parser.add_argument('--model', default='SFNet', type=str)
+    parser.add_argument('--num_workers', default=8, type=int)
+    parser.add_argument('--evaluate', default=False, type=bool)
+    parser.add_argument('--loss_function', default='L2', type=str)
     parser.add_argument('--output_dir', default='experiment/result', type=str)
-    parser.add_argument('--resize_size', default=32, type=int)
 
     args = parser.parse_args()
     if not os.path.exists(args.output_dir):

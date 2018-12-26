@@ -23,41 +23,51 @@ def divide():
 class ModelsimDataset(Dataset):
     def __init__(self, root, file_list):
         self.root = root
+        self.near = 5
 
         self.feature = []
         self.predict = []
         with open(file_list, 'r') as f:
             self.file_list = f.readlines()
-        count = 0
         for item in self.file_list:
-            print(count)
             subject = item.split(',')[0]
             other = item.split(',')[1]
             with open(root + subject, 'r') as f_subject:
                 subject = f_subject.readlines()
             with open(root + other[:-1], 'r') as f_other:
                 other = f_other.readlines()
-            print(len(subject))
-            print(len(other))
             assert(len(subject) == len(other))
             for i in range(len(subject) - 1):
                 tmp = []
-                for j in subject[i].split(','):
-                    tmp.append(float(j))
-                for j in other[i].split(','):
-                    tmp.append(float(j))
+                subject_split = subject[i].split(',')
+                other_split = other[i].split(',')
+                for j in range(len(subject_split)):
+                    tmp.append(float(subject_split[j]))
+                for j in range(self.near):
+                    value = float(other_split[j])
+                    value = np.clip(value, -3, 3)
+                    value /= 3
+                    tmp.append(value)
+                    value = float(other_split[j + self.near])
+                    value = np.clip(value, -3, 3)
+                    value /= 3
+                    tmp.append(value)
+                for j in range(2*self.near, 3*self.near):
+                    tmp.append(float(other_split[j]))
+                    tmp.append(float(other_split[j + self.near]))
                 self.feature.append(tmp)
                 # label
                 split_result = subject[i + 1].split(',')
                 self.predict.append([float(split_result[0]), float(split_result[1])])
 
         self.feature = np.array(self.feature)
+        self.feature = self.feature.reshape(-1, 12, 2)
         self.predict = np.array(self.predict)
 
     def __len__(self):
         return self.feature.shape[0]
 
-    def __getitem(self, index):
+    def __getitem__(self, index):
         feature = self.feature[index]
         feature = torch.from_numpy(feature).float()
         predict = self.predict[index]
@@ -77,13 +87,6 @@ class ModelsimTestDataset(Dataset):
 
 
 if __name__ == "__main__":
-    divide()
-    '''
     dataset = ModelsimDataset(root='./data/a/', file_list='test_a.txt')
-    feature, predict = next(enumerate(dataset))
-    print(feature.shape)
-    print(predict.shape)
-    print(predict)
-    print(feature)
-    print(len(dataset))
-    '''
+    print(dataset.feature.shape)
+    print(dataset.feature[0].shape)

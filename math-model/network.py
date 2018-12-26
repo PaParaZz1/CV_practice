@@ -30,11 +30,12 @@ class SFNet(nn.Module):
         self.fc = nn.Linear(self.node_list[-1], 2)
 
     def forward(self, x):
+        residual = x[:, 0, :]  # origin locate
         x = self.main(x)
         x = self.maxpool(x)
         x = x.view(x.size(0), -1)
         x = self.fc(x)
-        return x
+        return residual + x
 
 
 if __name__ == "__main__":
