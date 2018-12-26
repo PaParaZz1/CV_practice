@@ -77,6 +77,8 @@ class ModelsimTestDataset(Dataset):
 
 
 if __name__ == "__main__":
+    divide()
+    '''
     dataset = ModelsimDataset(root='./data/a/', file_list='test_a.txt')
     feature, predict = next(enumerate(dataset))
     print(feature.shape)
@@ -84,3 +86,4 @@ if __name__ == "__main__":
     print(predict)
     print(feature)
     print(len(dataset))
+    '''
