@@ -1,4 +1,3 @@
-import os
 import random
 import numpy as np
 import torch
@@ -64,6 +63,17 @@ class ModelsimDataset(Dataset):
         predict = self.predict[index]
         predict = torch.from_numpy(predict).float()
         return feature, predict
+
+
+class ModelsimTestDataset(Dataset):
+    def __init__(self, root, file_list):
+        self.root = root
+
+    def __len__(self):
+        return 0
+
+    def __getitem(self):
+        return 0
 
 
 if __name__ == "__main__":

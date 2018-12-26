@@ -8,7 +8,7 @@ import torch.optim
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import MultiStepLR
 
-from dataset import ModelsimDataset
+from dataset import ModelsimDataset, ModelsimTestDataset
 from network import SFNet
 
 
@@ -31,8 +31,12 @@ def load_model(model, path, strict=False):
 
 def train(train_dataloader, dev_dataloader, model, optimizer, lr_scheduler, dev_set_len, args):
     model.train()
-    if args.loss_function == 'CrossEntropy':
-        criterion = nn.CrossEntropyLoss()
+    if args.loss_function == 'L1':
+        criterion = nn.L1Loss()
+    elif args.loss_function == 'L2':
+        criterion = nn.MSELoss()
+    else:
+        raise ValueError("invalid lossfunction: {}".format(args.loss_function))
     batch_size = args.batch_size
     print('batch_size: {}'.format(batch_size))
 
@@ -53,7 +57,8 @@ def train(train_dataloader, dev_dataloader, model, optimizer, lr_scheduler, dev_
 
             output_choice = output.data.max(dim=1)[1]
             correct = output_choice.eq(label).sum().cpu().numpy()
-            print('[epoch%d: batch%d], train loss: %f, accuracy: %f' % (epoch, idx, loss.item(), correct * 1.0 / cur_length))
+            print('[epoch%d: batch%d], train loss: %f, accuracy: %f' %
+                  (epoch, idx, loss.item(), correct * 1.0 / cur_length))
 
             if idx % 50 == 49:
                 total_correct = 0.
@@ -64,9 +69,11 @@ def train(train_dataloader, dev_dataloader, model, optimizer, lr_scheduler, dev_
                     output_choice = output.data.max(dim=1)[1]
                     correct = output_choice.eq(label).sum().cpu().numpy()
                     total_correct += correct
-                print('dev set accuracy: {}'.format(total_correct/float(dev_set_len)))
+                print('dev set accuracy: {}'.format(
+                    total_correct/float(dev_set_len)))
         if epoch % 1 == 0:
-            torch.save(model.state_dict(), "%s/epoch_%d.pth" % (args.output_dir, epoch))
+            torch.save(model.state_dict(), "%s/epoch_%d.pth" %
+                       (args.output_dir, epoch))
 
 
 def validate(test_dataloader, model):
@@ -82,7 +89,8 @@ def validate(test_dataloader, model):
     with open('submission.csv', 'w') as f:
         for item in result:
             for j in range(item.shape[0]):
-                f.write(str(item[j]) + '\n') 
+                f.write(str(item[j]) + '\n')
+
 
 def main(args):
     if args.model == 'SFNet':
@@ -92,8 +100,8 @@ def main(args):
     model.cuda()
 
     optimizer = torch.optim.Adam(model.parameters(), args.lr,
-                                #momentum=args.momentum,
-                                weight_decay=args.weight_decay)
+                                 # momentum=args.momentum,
+                                 weight_decay=args.weight_decay)
     lr_scheduler = MultiStepLR(optimizer, milestones=[100, 200], gamma=0.5)
 
     if args.load_path:
@@ -101,29 +109,28 @@ def main(args):
             load_model(model, args.load_path, strict=True)
             print('load model state dict in {}'.format(args.load_path))
 
-    resize_size = args.resize_size
-    train_set = DigitDataset('../data.csv')
-    dev_set = DigitDataset('../dev_set.csv', root_path='/mnt/lustre/niuyazhe/nyz/ml/team/data/train/', transform=transform)
-    test_set = DigitTestDataset('../test_set.csv', transform=transform)
-    train_dataloader = DataLoader(train_set, batch_size=args.batch_size, 
+    train_set = ModelsimDataset(root=args.root, file_list='train_a.txt')
+    test_set = ModelsimTestDataset(root=args.root, file_list='test_a.txt')
+    train_dataloader = DataLoader(train_set, batch_size=args.batch_size,
                                   shuffle=True, num_workers=args.num_workers,
                                   pin_memory=True)
-    dev_dataloader = DataLoader(dev_set, batch_size=args.batch_size, 
-                                shuffle=False, num_workers=args.num_workers,
-                                pin_memory=True)
-    test_dataloader = DataLoader(test_set, batch_size=args.batch_size, 
+    test_dataloader = DataLoader(test_set, batch_size=args.batch_size,
                                  shuffle=False, num_workers=args.num_workers,
                                  pin_memory=True)
 
     if args.evaluate:
-        validate(dev_dataloader, model)
+        validate(test_dataloader, model)
         return
 
-    train(train_dataloader, dev_dataloader, model, optimizer, lr_scheduler, len(dev_set), args)
+    train(train_dataloader, test_dataloader, model,
+          optimizer, lr_scheduler, len(test_set), args)
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='machine learning homework')
-    parser.add_argument('--load_path', default='./experiment/premousenet_scratch_resize/epoch_63.pth', type=str)
+    parser = argparse.ArgumentParser(description='math model homework')
+    parser.add_argument(
+        '--load_path', default='./experiment/SFNet/epoch_63.pth', type=str)
+    parser.add_argument('--root', default='./data/a/')
     parser.add_argument('--recover', default=True, type=bool)
     parser.add_argument('--epoch', default=500, type=int)
     parser.add_argument('--lr', default=4e-4, type=float)
@@ -133,8 +140,8 @@ if __name__ == "__main__":
     parser.add_argument('--model', default='resnet18', type=str)
     parser.add_argument('--num_workers', default=32, type=int)
     parser.add_argument('--evaluate', default=True, type=bool)
-    parser.add_argument('--loss_function', default='CrossEntropy', type=str)
-    parser.add_argument('--output_dir', default='./experiment/result', type=str)
+    parser.add_argument('--loss_function', default='L1', type=str)
+    parser.add_argument('--output_dir', default='experiment/result', type=str)
     parser.add_argument('--resize_size', default=32, type=int)
 
     args = parser.parse_args()
